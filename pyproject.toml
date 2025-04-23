@@ -6,16 +6,22 @@ authors = [
     {name = "Grégory LEFER",email = "contact@glefer.fr"}
 ]
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.13,<4.0.0"
 dependencies = [
     "isort (>=6.0.1,<7.0.0)",
     "black (>=25.1.0,<26.0.0)",
     "flake8 (>=7.2.0,<8.0.0)",
-    "pre-commit (>=4.2.0,<5.0.0)"
+    "pre-commit (>=4.2.0,<5.0.0)",
+    "textual (>=3.0.1,<4.0.0)",
+    "docker (>=7.1.0,<8.0.0)",
+    "pytest (>=8.3.5,<9.0.0)"
 ]
 
 [tool.poetry]
 packages = [{include = "docker_volume_analyzer", from = "src"}]
+
+[tool.poetry.scripts]
+start = "docker_volume_analyzer.main:main"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
@@ -23,3 +29,6 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.isort]
 profile = "black"
+
+[tool.black]
+line-length = 79
