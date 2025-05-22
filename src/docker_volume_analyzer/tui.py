@@ -1,12 +1,16 @@
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal
-from textual.widgets import DataTable, DirectoryTree, Footer, Header
+from textual.widgets import DataTable, Footer, Header
 
 from docker_volume_analyzer.volume_manager import VolumeManager
+from docker_volume_analyzer.widgets.virtual_tree import VirtualDirectoryTree
 
 
 class DockerTUI(App):
-    """Interface TUI pour gérer les volumes Docker."""
+    """
+    DockerTUI is a Textual UI application for managing Docker volumes.
+    It provides a graphical interface to view and interact with Docker volumes.
+    """
 
     BINDINGS = [("d", "toggle_dark", "Toggle dark mode")]
     CSS_PATH = "layout.tcss"
@@ -28,8 +32,9 @@ class DockerTUI(App):
         """
         yield Header()
         with Horizontal(id="top"):
-            yield DataTable(cursor_type="row")
-            yield DirectoryTree("/dev/null")
+            yield DataTable(cursor_type="row", id="volumes_table")
+            yield VirtualDirectoryTree({}, self.manager, "Virtual Root")
+
         yield Footer()
 
     def on_mount(self) -> None:
@@ -74,8 +79,10 @@ class DockerTUI(App):
         table = self.query_one(DataTable)
         row_key = event.row_key
         row_data = table.get_row(row_key)
-        tree = self.query_one(DirectoryTree)
-        tree.path = self.volumes.get(row_data[0], "/dev/null")
+        tree = self.query_one(VirtualDirectoryTree)
+        tree.update_virtual_tree(
+            self.manager.get_volume_files(row_data[0]), row_data[0]
+        )
 
 
 if __name__ == "__main__":
