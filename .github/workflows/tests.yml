@@ -1,0 +1,69 @@
+name: Python poetry application
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+  pull-requests: write  # Needed for commenting on PRs
+
+jobs:
+  build:
+    name: Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: cache poetry install
+        uses: actions/cache@v4
+        with:
+          path: ~/.local
+          key: poetry-2.1.2-0
+
+      - uses: snok/install-poetry@v1
+        with:
+          version: 2.1.2
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: cache deps
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: pydeps-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies using poetry
+        run: poetry install --no-interaction --no-root
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+
+      - name: Install project
+        run: poetry install --no-interaction
+
+      - name: Analysing the code with black, flake8, isort, etc...
+        run: |
+          poetry run pre-commit run --all-files
+
+      - name: Test with coverage
+        run: |
+          poetry run pytest --cov=docker_volume_analyzer --cov-report=xml --cov-report=term
+
+      - name: Pytest coverage comment
+        uses: MishaKav/pytest-coverage-comment@main
+        with:
+          pytest-xml-coverage-path: ./coverage.xml
+
+      - name: Upload coverage reports to Codecov
+        if: github.ref == 'refs/heads/main'
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}

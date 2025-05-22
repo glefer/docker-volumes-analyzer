@@ -1,0 +1,4 @@
+#bottom{
+    height: 0.35fr;
+    border: solid lightgrey;
+}
