@@ -17,9 +17,10 @@ def make_mock_volume(name: str, mountpoint: str, created_at: str) -> MagicMock:
 
 
 def make_mock_container_with_mounts(
-    name: str, mounts: List[dict]
+    short_id: str, name: str, mounts: List[dict]
 ) -> MagicMock:
     container = MagicMock()
+    container.short_id = short_id
     container.name = name
     container.attrs = {"Mounts": mounts}
     return container
@@ -46,6 +47,7 @@ def generate_test_data(num_volumes: int, max_containers_per_volume: int):
 
         for j in range(num_containers):
             cont_name = f"container{i}_{j}"
+            short_id = f"{i:02d}{j:02d}"
             mount = {
                 "Name": vol_name,
                 "Destination": mountpoint,
@@ -53,11 +55,14 @@ def generate_test_data(num_volumes: int, max_containers_per_volume: int):
                 "Mode": "rw",
                 "RW": True,
             }
-            container = make_mock_container_with_mounts(cont_name, [mount])
+            container = make_mock_container_with_mounts(
+                short_id, cont_name, [mount]
+            )
             containers.append(container)
 
             volume_containers.append(
                 {
+                    "short_id": short_id,
                     "container_name": cont_name,
                     "mountpoint": mountpoint,
                     "driver": "local",
@@ -66,7 +71,7 @@ def generate_test_data(num_volumes: int, max_containers_per_volume: int):
                 }
             )
 
-        expected[i] = {
+        expected[vol_name] = {
             "name": vol_name,
             "mountpoint": mountpoint,
             "size": size,

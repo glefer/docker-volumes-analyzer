@@ -17,14 +17,14 @@ class VolumeManager:
         containers_by_volumes = self.get_containers_by_volume()
 
         return {
-            idx: {
+            volume.name: {
                 "name": volume.name,
                 "mountpoint": volume.attrs.get("Mountpoint", ""),
                 "size": self.get_volume_size(volume.name),
                 "created_at": volume.attrs.get("CreatedAt", ""),
                 "containers": containers_by_volumes.get(volume.name, []),
             }
-            for idx, volume in enumerate(self.client.list_volumes())
+            for volume in self.client.list_volumes()
         }
 
     def get_containers_by_volume(self) -> dict:
@@ -43,6 +43,7 @@ class VolumeManager:
                     containers_by_volumes[volume_name] = []
                 containers_by_volumes[volume_name].append(
                     {
+                        "short_id": container.short_id,
                         "container_name": container.name,
                         "mountpoint": volume.get("Destination", ""),
                         "driver": volume.get("Driver", ""),

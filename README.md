@@ -12,5 +12,5 @@ Docker Volume Analyzer is a tool designed to simplify the management of Docker v
 This project aims to make Docker volume management more intuitive and user-friendly.
 
 [![Build Status](https://github.com/glefer/docker-volumes-analyzer/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/glefer/docker-volumes-analyzer/actions)
-[![codecov](https://codecov.io/gh/glefer/docker-volumes-analyzer/branch/main/graph/badge.svg)](https://codecov.io/gh/glefer/docker-volumes-analyzer)
+[![codecov](https://codecov.io/gh/glefer/docker-volumes-analyzer/branch/main/graph/badge.svg?token=JRjmc0emjT)](https://codecov.io/gh/glefer/docker-volumes-analyzer)
 ![Python](https://img.shields.io/badge/python-3.13-blue)

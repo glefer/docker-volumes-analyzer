@@ -58,6 +58,7 @@ jobs:
           poetry run pytest --cov=docker_volume_analyzer --cov-report=xml --cov-report=term
 
       - name: Pytest coverage comment
+        if: ${{ github.event_name == 'pull_request' }}
         uses: MishaKav/pytest-coverage-comment@main
         with:
           pytest-xml-coverage-path: ./coverage.xml
