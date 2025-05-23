@@ -2,3 +2,22 @@
     height: 0.35fr;
     border: solid lightgrey;
 }
+
+Screen {
+    layout: vertical;
+    align: center middle;
+    padding: 1 2;
+}
+
+
+.box {
+    border: round white;
+    padding: 1 2;
+    width: 100%;
+}
+
+.info-panel Static {
+    padding: 0 1;
+    height: auto;
+    color: white;
+}

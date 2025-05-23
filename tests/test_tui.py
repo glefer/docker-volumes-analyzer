@@ -1,9 +1,9 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 from textual.widgets import DataTable
 
-from docker_volume_analyzer.tui import DockerTUI
+from docker_volume_analyzer.tui import DockerTUI, VolumeDetailScreen
 
 
 @pytest.mark.asyncio
@@ -56,3 +56,131 @@ def test_action_toggle_dark():
 
     app.action_toggle_dark()
     assert app.theme == "textual-light"
+
+
+@pytest.mark.asyncio
+async def test_action_information():
+    """
+    Test that the action_information method displays the correct
+    volume details.
+    """
+    mock_manager = MagicMock()
+    mock_manager.get_volumes.return_value = {
+        "volume1": {
+            "name": "volume1",
+            "size": "10GB",
+            "containers": [
+                {"short_id": "abc123", "container_name": "container1"}
+            ],
+            "created_at": "2023-01-01T00:00:00Z",
+            "mountpoint": "/var/lib/docker/volumes/volume1",
+        },
+        "volume2": {
+            "name": "volume2",
+            "size": "20GB",
+            "containers": [],
+            "created_at": "2023-01-02T00:00:00Z",
+            "mountpoint": "/var/lib/docker/volumes/volume2",
+        },
+    }
+
+    with patch(
+        "docker_volume_analyzer.tui.VolumeManager", return_value=mock_manager
+    ):
+        async with DockerTUI().run_test() as pilot:
+            await pilot.pause()
+
+            app = pilot.app
+            table: DataTable = app.query_one(
+                "#volumes_table", expect_type=DataTable
+            )
+            table.add_row("volume1", "10GB", 1, "2023-01-01T00:00:00Z")
+            table.cursor_type = 0  # Move the cursor to the first row
+
+            app.action_information()
+            assert isinstance(app.screen_stack[-1], VolumeDetailScreen)
+
+            screen = app.screen_stack[-1]
+            assert screen.volume_info["name"] == "volume1"
+            assert screen.volume_info["size"] == "10GB"
+            assert screen.volume_info["created_at"] == "2023-01-01T00:00:00Z"
+            assert (
+                screen.volume_info["mountpoint"]
+                == "/var/lib/docker/volumes/volume1"
+            )
+            assert len(screen.volume_info["containers"]) == 1
+            assert (
+                screen.volume_info["containers"][0]["container_name"]
+                == "container1"
+            )
+            assert screen.volume_info["containers"][0]["short_id"] == "abc123"
+
+
+@pytest.mark.asyncio
+async def test_action_information_no_selection():
+    """
+    Test that the action_information method does nothing
+    when no row is selected in the DataTable.
+    """
+    mock_manager = MagicMock()
+    mock_manager.get_volumes.return_value = {
+        "volume1": {
+            "name": "volume1",
+            "size": "10GB",
+            "containers": [
+                {"short_id": "abc123", "container_name": "container1"}
+            ],
+            "created_at": "2023-01-01T00:00:00Z",
+            "mountpoint": "/var/lib/docker/volumes/volume1",
+        }
+    }
+
+    with patch(
+        "docker_volume_analyzer.tui.VolumeManager", return_value=mock_manager
+    ):
+        async with DockerTUI().run_test() as pilot:
+            await pilot.pause()
+
+            app = pilot.app
+            table: DataTable = app.query_one(
+                "#volumes_table", expect_type=DataTable
+            )
+
+            # Patch cursor_row to simulate no row being selected
+            with patch.object(
+                type(table), "cursor_row", new_callable=PropertyMock
+            ) as mock_cursor_row:
+                mock_cursor_row.return_value = None
+
+                app.action_information()
+
+                # Assertions: no new screen was pushed
+                assert len(app.screen_stack) == 1
+                assert not isinstance(app.screen_stack[-1], VolumeDetailScreen)
+
+
+@pytest.mark.asyncio
+async def test_action_previous_removes_screen_and_refreshes():
+    volume_info = {
+        "name": "volume1",
+        "size": "10GB",
+        "created_at": "2023-01-01",
+        "mountpoint": "/mnt/volume1",
+        "containers": [{"short_id": "abc123", "container_name": "container1"}],
+    }
+
+    screen = VolumeDetailScreen(volume_info)
+
+    # Création d'un mock pour app avec les méthodes pop_screen et refresh
+    mock_app = MagicMock()
+
+    # Patch la propriété 'app' du screen pour retourner mock_app
+    with patch.object(
+        type(screen), "app", new_callable=PropertyMock
+    ) as mock_app_prop:
+        mock_app_prop.return_value = mock_app
+
+        screen.action_back()
+
+        mock_app.pop_screen.assert_called_once()
+        mock_app.refresh.assert_called_once()
