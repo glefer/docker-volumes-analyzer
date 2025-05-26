@@ -2,10 +2,15 @@ from typing import List, Union
 
 import docker
 
+from docker_volume_analyzer.errors import DockerNotAvailableError
+
 
 class DockerClient:
     def __init__(self):
-        self.client = docker.from_env()
+        try:
+            self.client = docker.from_env()
+        except docker.errors.DockerException as e:
+            raise DockerNotAvailableError from e
 
     def list_volumes(self) -> List[docker.models.volumes.Volume]:
         """
@@ -17,7 +22,7 @@ class DockerClient:
         """
         Returns all running Docker container objects.
         """
-        return self.client.containers.list()
+        return self.client.containers.list(all=True)
 
     def _run_in_container(
         self,
