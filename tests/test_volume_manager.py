@@ -88,7 +88,6 @@ def test_get_volumes() -> None:
         num_volumes, max_containers_per_volume=5
     )
 
-    # Mock du client Docker
     mock_client = MagicMock()
     mock_client.list_volumes.return_value = volumes
     mock_client.list_containers.return_value = containers
@@ -101,3 +100,32 @@ def test_get_volumes() -> None:
     volume_manager.client = mock_client
 
     assert volume_manager.get_volumes() == expected
+
+
+def test_delete_volume_success() -> None:
+    volume_name = "test_volume"
+
+    mock_client = MagicMock()
+    mock_client.remove_volume.return_value = True
+
+    # Injecte dans VolumeManager
+    volume_manager = VolumeManager()
+    volume_manager.client = mock_client
+
+    assert volume_manager.delete_volume(volume_name) is True
+    mock_client.remove_volume.assert_called_once_with(volume_name)
+
+
+def test_delete_volume_failure() -> None:
+    volume_name = "non_existent_volume"
+
+    mock_client = MagicMock()
+
+    mock_client.remove_volume.side_effect = Exception("Volume not found")
+
+    # Injecte dans VolumeManager
+    volume_manager = VolumeManager()
+    volume_manager.client = mock_client
+
+    assert volume_manager.delete_volume(volume_name) is False
+    mock_client.remove_volume.assert_called_once_with(volume_name)

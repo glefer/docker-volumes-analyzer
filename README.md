@@ -11,53 +11,53 @@ Docker Volume Analyzer is a tool designed to simplify the management of Docker v
 
 This project aims to make Docker volume management more intuitive and user-friendly.
 
-[![Build Status](https://github.com/glefer/docker-volumes-analyzer/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/glefer/docker-volumes-analyzer/actions)
+[![Python Poetry Application](https://github.com/glefer/docker-volumes-analyzer/actions/workflows/main.yml/badge.svg)](https://github.com/glefer/docker-volumes-analyzer/actions/workflows/main.yml)
 [![codecov](https://codecov.io/gh/glefer/docker-volumes-analyzer/branch/main/graph/badge.svg?token=JRjmc0emjT)](https://codecov.io/gh/glefer/docker-volumes-analyzer)
 ![Python](https://img.shields.io/badge/python-3.13-blue)
-
+[![Docker](https://img.shields.io/docker/pulls/glefer/docker-volumes-analyzer)](https://hub.docker.com/r/glefer/docker-volumes-analyzer)
 
 ## Installation
 
-### Prérequis
+### Prerequisites
 
 - **Python** `>=3.13,<4.0.0`
-- **Poetry** `>=2.1.2` installé globalement ([lien d’installation](https://python-poetry.org/docs/#installation))
-- Docker en local (si tu veux analyser des volumes)
+- **Poetry** `>=2.1.2` installed globally ([installation link](https://python-poetry.org/docs/#installation))
+- Docker installed locally (if you want to analyze volumes)
 
 ---
 
-### 1. Cloner le projet
+### 1. Clone the project
 
 ```bash
 git clone https://github.com/glefer/docker-volumes-analyzer.git
 cd docker-volumes-analyzer
 ```
 
-### 2. Installer les dépendances
+### 2. Install dependencies
 
 ```bash
 poetry install
 ```
 
-### 3. Lancer l'application
+### 3. Run the application
 
 ```bash
 poetry run start
 ```
 
-> ⚠️ L'application utilise le socket Docker à l'emplacement standard : `/var/run/docker.sock`
+> ⚠️ The application uses the Docker socket at the standard location: `/var/run/docker.sock`
 
 ---
 
-## 🐳 Utilisation via Docker 
+## 🐳 Usage via Docker 
 
-Pas envie d’installer Python ? Utilise simplement l’image Docker :
+Don't want to install Python? Simply use the Docker image:
 
 ```bash
 docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -ti glefer/docker-volumes-analyzer:latest
 ```
 
-###  Utiliser une version spécifique
+### Use a specific version
 
 ```bash
 docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -ti glefer/docker-volumes-analyzer:0.1.0
@@ -65,13 +65,13 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -ti glefer/docker-v
 
 ---
 
-## Lancer les tests
+## Run tests
 
 ```bash
 poetry run pytest
 ```
 
-Avec couverture :
+With coverage:
 
 ```bash
 poetry run pytest --cov=docker_volume_analyzer
@@ -79,15 +79,15 @@ poetry run pytest --cov=docker_volume_analyzer
 
 ---
 
-## 🛠 Développement
+## 🛠 Development
 
-Lance un shell virtuel :
+Start a virtual shell:
 
 ```bash
 poetry shell
 ```
 
-Formatage et vérifications :
+Formatting and checks:
 
 ```bash
 poetry run pre-commit run --all-files
@@ -95,13 +95,13 @@ poetry run pre-commit run --all-files
 
 ---
 
-## 🔧 Structure du projet
+## 🔧 Project structure
 
 ```
 .
 ├── src/
 │   └── docker_volume_analyzer/
-│       └── main.py   # Point d’entrée
+│       └── main.py   # Entry point
 ├── tests/
 ├── README.md
 ├── pyproject.toml
@@ -122,11 +122,11 @@ For major changes, please open an issue first to discuss what you would like to 
 
 ---
 
-## 📝 Licence
+## 📝 License
 
-Ce projet est sous licence **MIT** — voir le fichier [LICENSE](./LICENSE).
+This project is licensed under the **MIT** license — see the [LICENSE](./LICENSE) file.
 
 ---
 
-## 👨‍💻 Auteur
+## 👨‍💻 Author
 [github.com/glefer](https://github.com/glefer)

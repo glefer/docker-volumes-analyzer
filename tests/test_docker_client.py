@@ -110,3 +110,63 @@ def test_docker_not_available_error():
         # Assert that DockerNotAvailableError is raised
         with pytest.raises(DockerNotAvailableError):
             DockerClient()
+
+
+def test_remove_volume_success():
+    """
+    Test the remove_volume method of DockerClient when
+    the volume is successfully removed.
+    """
+    mock_client = MagicMock()
+    mock_volume = MagicMock()
+    mock_client.volumes.get.return_value = mock_volume
+
+    docker_client = DockerClient()
+    docker_client.client = mock_client
+
+    docker_client.remove_volume("test_volume")
+
+    mock_client.volumes.get.assert_called_with("test_volume")
+    mock_volume.remove.assert_called_with(force=True)
+
+
+def test_remove_volume_not_found():
+    """
+    Test the remove_volume method of DockerClient when the volume is not found.
+    """
+    mock_client = MagicMock()
+    mock_client.volumes.get.side_effect = docker.errors.NotFound(
+        "Volume not found"
+    )
+
+    docker_client = DockerClient()
+    docker_client.client = mock_client
+
+    with pytest.raises(
+        docker.errors.APIError, match="Volume 'test_volume' not found."
+    ):
+        docker_client.remove_volume("test_volume")
+
+    mock_client.volumes.get.assert_called_with("test_volume")
+
+
+def test_remove_volume_api_error():
+    """
+    Test the remove_volume method of DockerClient when an API error occurs.
+    """
+    mock_client = MagicMock()
+    mock_volume = MagicMock()
+    mock_client.volumes.get.return_value = mock_volume
+    mock_volume.remove.side_effect = docker.errors.APIError("API error")
+
+    docker_client = DockerClient()
+    docker_client.client = mock_client
+
+    with pytest.raises(
+        docker.errors.APIError,
+        match="Failed to remove volume 'test_volume': API error",
+    ):
+        docker_client.remove_volume("test_volume")
+
+    mock_client.volumes.get.assert_called_with("test_volume")
+    mock_volume.remove.assert_called_with(force=True)

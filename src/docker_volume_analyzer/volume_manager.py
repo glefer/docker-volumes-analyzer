@@ -64,3 +64,19 @@ class VolumeManager:
             int: Size of the volume in bytes.
         """
         return self.client.get_volume_size(volume_name)
+
+    def delete_volume(self, volume_name: str) -> bool:
+        """
+        Delete a Docker volume by its name.
+
+        Args:
+            volume_name (str): Name of the Docker volume to delete.
+
+        Returns:
+            bool: True if the volume was deleted successfully, False otherwise.
+        """
+        try:
+            self.client.remove_volume(volume_name)
+            return True
+        except Exception:
+            return False

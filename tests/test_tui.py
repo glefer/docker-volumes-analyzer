@@ -1,9 +1,14 @@
 from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
-from textual.widgets import DataTable
+from textual.widgets import Button, DataTable
 
-from docker_volume_analyzer.tui import DockerTUI, VolumeDetailScreen
+from docker_volume_analyzer.tui import (
+    ConfirmationScreen,
+    DockerTUI,
+    ErrorScreen,
+    VolumeDetailScreen,
+)
 
 
 @pytest.mark.asyncio
@@ -184,3 +189,243 @@ async def test_action_previous_removes_screen_and_refreshes():
 
         mock_app.pop_screen.assert_called_once()
         mock_app.refresh.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_action_delete_volume_with_no_selection():
+    """
+    Test that the action_delete_volume method does nothing
+    when no row is selected in the DataTable.
+    """
+    mock_manager = MagicMock()
+    mock_manager.get_volumes.return_value = {
+        "volume1": {
+            "name": "volume1",
+            "size": "10GB",
+            "containers": [],
+            "created_at": "2023-01-01T00:00:00Z",
+        }
+    }
+
+    with patch(
+        "docker_volume_analyzer.tui.VolumeManager", return_value=mock_manager
+    ):
+        async with DockerTUI().run_test() as pilot:
+            await pilot.pause()
+
+            app = pilot.app
+            table: DataTable = app.query_one(
+                "#volumes_table", expect_type=DataTable
+            )
+
+            # Patch cursor_row to simulate no row being selected
+            with patch.object(
+                type(table), "cursor_row", new_callable=PropertyMock
+            ) as mock_cursor_row:
+                mock_cursor_row.return_value = None
+
+                app.action_delete_volume()
+
+                # Assertions: no new screen was pushed
+                assert len(app.screen_stack) == 1
+
+
+@pytest.mark.asyncio
+async def test_action_delete_volume_with_attached_containers():
+    """
+    Test that the action_delete_volume method shows an error screen
+    when the selected volume has attached containers.
+    """
+    mock_manager = MagicMock()
+    mock_manager.get_volumes.return_value = {
+        "volume1": {
+            "name": "volume1",
+            "size": "10GB",
+            "containers": [{"container_name": "container1"}],
+            "created_at": "2023-01-01T00:00:00Z",
+        }
+    }
+
+    with patch(
+        "docker_volume_analyzer.tui.VolumeManager", return_value=mock_manager
+    ):
+        async with DockerTUI().run_test() as pilot:
+            await pilot.pause()
+
+            app = pilot.app
+            table: DataTable = app.query_one(
+                "#volumes_table", expect_type=DataTable
+            )
+            table.add_row("volume1", "10GB", 1, "2023-01-01T00:00:00Z")
+            with patch.object(
+                type(table), "cursor_row", new_callable=PropertyMock
+            ) as mock_cursor_row:
+                mock_cursor_row.return_value = (
+                    0  # Simulate the cursor on the first row
+                )
+
+            app.action_delete_volume()
+
+            # Assertions: an error screen was pushed
+            assert isinstance(app.screen_stack[-1], ErrorScreen)
+            assert (
+                app.screen_stack[-1].message
+                == "Cannot delete volume with attached containers."
+            )
+
+
+@pytest.mark.asyncio
+async def test_action_delete_volume_success():
+    """
+    Test that the action_delete_volume method deletes the selected volume
+    when confirmed.
+    """
+    mock_manager = MagicMock()
+    mock_manager.get_volumes.return_value = {
+        "volume1": {
+            "name": "volume1",
+            "size": "10GB",
+            "containers": [],
+            "created_at": "2023-01-01T00:00:00Z",
+        }
+    }
+
+    with patch(
+        "docker_volume_analyzer.tui.VolumeManager", return_value=mock_manager
+    ):
+        async with DockerTUI().run_test() as pilot:
+            await pilot.pause()
+
+            app = pilot.app
+            table: DataTable = app.query_one(
+                "#volumes_table", expect_type=DataTable
+            )
+            table.cursor_type = 0
+
+            # Simulate user confirming the deletion
+            app.action_delete_volume()
+            confirmation_screen = app.screen_stack[-1]
+            assert isinstance(confirmation_screen, ConfirmationScreen)
+
+            # Simulate pressing "Yes" on the confirmation screen
+            confirmation_screen.on_button_pressed(
+                Button.Pressed(Button("Yes", id="yes_button"))
+            )
+
+            # Assertions
+            mock_manager.delete_volume.assert_called_once_with("volume1")
+            assert len(table.rows) == 0  # Volume was removed from the table
+
+
+@pytest.mark.asyncio
+async def test_action_delete_volume_not_confirmed():
+    """
+    Test that the action_delete_volume method does not delete the volume
+    when the user does not confirm.
+    """
+    mock_manager = MagicMock()
+    mock_manager.get_volumes.return_value = {
+        "volume1": {
+            "name": "volume1",
+            "size": "10GB",
+            "containers": [],
+            "created_at": "2023-01-01T00:00:00Z",
+        }
+    }
+
+    with patch(
+        "docker_volume_analyzer.tui.VolumeManager", return_value=mock_manager
+    ):
+        async with DockerTUI().run_test() as pilot:
+            await pilot.pause()
+
+            app = pilot.app
+            table: DataTable = app.query_one(
+                "#volumes_table", expect_type=DataTable
+            )
+            table.cursor_type = 0
+
+            # Simulate user confirming the deletion
+            app.action_delete_volume()
+            confirmation_screen = app.screen_stack[-1]
+            assert isinstance(confirmation_screen, ConfirmationScreen)
+
+            # Simulate pressing "No" on the confirmation screen
+            confirmation_screen.on_button_pressed(
+                Button.Pressed(Button("No", id="no_button"))
+            )
+
+            # Assertions
+            mock_manager.delete_volume.assert_not_called()
+            assert len(table.rows) == 1
+
+
+@pytest.mark.asyncio
+async def test_action_delete_volume_throw_exception():
+    """
+    Test that the action_delete_volume method handles exceptions
+    when trying to delete a volume.
+    """
+    mock_manager = MagicMock()
+    mock_manager.get_volumes.return_value = {
+        "volume1": {
+            "name": "volume1",
+            "size": "10GB",
+            "containers": [],
+            "created_at": "2023-01-01T00:00:00Z",
+        }
+    }
+    mock_manager.delete_volume.side_effect = Exception("Docker error")
+
+    with patch(
+        "docker_volume_analyzer.tui.VolumeManager", return_value=mock_manager
+    ):
+        async with DockerTUI().run_test() as pilot:
+            await pilot.pause()
+
+            app = pilot.app
+            table: DataTable = app.query_one(
+                "#volumes_table", expect_type=DataTable
+            )
+            table.cursor_type = 0
+
+            # Simulate user confirming the deletion
+            app.action_delete_volume()
+            confirmation_screen = app.screen_stack[-1]
+            assert isinstance(confirmation_screen, ConfirmationScreen)
+
+            # Simulate pressing "Yes" on the confirmation screen
+            confirmation_screen.on_button_pressed(
+                Button.Pressed(Button("Yes", id="yes_button"))
+            )
+
+            # Assertions: an error screen was pushed
+            assert isinstance(app.screen_stack[-1], ErrorScreen)
+            assert (
+                app.screen_stack[-1].message
+                == "Error deleting volume: Docker error"
+            )
+
+
+@pytest.mark.asyncio
+async def test_error_screen_action_back():
+    """
+    Test that the action_back method pops the ErrorScreen.
+    """
+    error_message = "This is an error message."
+    screen = ErrorScreen(error_message)
+
+    # Create a mock app to test screen behavior
+    mock_app = MagicMock()
+
+    # Patch the 'app' property of the screen to return the mock app
+    with patch.object(
+        type(screen), "app", new_callable=PropertyMock
+    ) as mock_app_prop:
+        mock_app_prop.return_value = mock_app
+
+        # Call the action_back method
+        screen.action_back()
+
+        # Assert that the screen was popped
+        mock_app.pop_screen.assert_called_once()
