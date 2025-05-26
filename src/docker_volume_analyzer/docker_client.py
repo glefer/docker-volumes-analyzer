@@ -72,3 +72,25 @@ class DockerClient:
             ["sh", "-c", "du -sh /mnt/docker_volume"], volume_name
         )
         return output.split()[0] if output else "0"
+
+    def remove_volume(self, volume_name: str) -> None:
+        """
+        Removes a Docker volume by name.
+
+        Args:
+            volume_name (str): Name of the Docker volume to remove.
+
+        Raises:
+            docker.errors.APIError: If the volume cannot be removed.
+        """
+        try:
+            volume = self.client.volumes.get(volume_name)
+            volume.remove(force=True)
+        except docker.errors.NotFound as e:
+            raise docker.errors.APIError(
+                f"Volume '{volume_name}' not found."
+            ) from e
+        except docker.errors.APIError as e:
+            raise docker.errors.APIError(
+                f"Failed to remove volume '{volume_name}': {e}"
+            ) from e
