@@ -2,14 +2,13 @@ name: Python Poetry Application
 
 on:
   push:
-    branches: ["main"]
     tags:
       - "v*"
   pull_request:
     branches: ["main"]
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write  # Needed for commenting on PRs
 
 env:
@@ -66,7 +65,7 @@ jobs:
           pytest-xml-coverage-path: ./coverage.xml
 
       - name: Upload Coverage to Codecov
-        if: github.ref == 'refs/heads/main'
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -79,12 +78,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Extract version from Git tag and set in pyproject.toml
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          poetry version $VERSION
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -115,6 +108,12 @@ jobs:
         run: poetry install --no-dev --no-interaction
         if: steps.cache-deps.outputs.cache-hit != 'true'
 
+      - name: Extract version from Git tag and set in pyproject.toml
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          poetry version $VERSION
+
       - name: Build Distribution
         run: poetry build
 
@@ -133,9 +132,10 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build Docker Image
-        run: docker build \
-          --build-arg APP_VERSION=${{ env.VERSION }} \
-          -t glefer/docker-volumes-analyzer:${{ env.VERSION }} \
+        run: > 
+          docker build 
+          --build-arg APP_VERSION=${{ env.VERSION }} 
+          -t glefer/docker-volumes-analyzer:${{ env.VERSION }} 
           -t glefer/docker-volumes-analyzer:latest .
 
       - name: Push Docker Image

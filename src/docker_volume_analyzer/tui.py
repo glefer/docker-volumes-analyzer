@@ -3,7 +3,7 @@ import os
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import DataTable, Footer, Header, Static
+from textual.widgets import Button, DataTable, Footer, Header, Static
 
 from docker_volume_analyzer.volume_manager import VolumeManager
 
@@ -18,6 +18,7 @@ class DockerTUI(App):
         ("t", "toggle_dark", "Toggle dark mode"),
         ("ctrl+q", "quit", "Quit"),
         ("i", "information", "Show information"),
+        ("d", "delete_volume", "Delete volume"),
     ]
     CSS_PATH = "tui.tcss"
 
@@ -90,6 +91,54 @@ class DockerTUI(App):
         volume_information = self.volumes.get(volume_name[0])
         self.push_screen(VolumeDetailScreen(volume_information))
 
+    def action_delete_volume(self):
+        """
+        An action to delete the selected volume.
+        """
+        table = self.query_one(DataTable)
+        selected_row = table.cursor_row
+
+        if selected_row is None:
+            return
+        volume_row = table.get_row_at(selected_row)
+        if volume_row[2] != 0:
+            self.push_screen(
+                ErrorScreen("Cannot delete volume with attached containers.")
+            )
+            return
+
+        def delete_callback(confirmed: bool) -> None:
+            """
+            Callback function to handle the confirmation of volume deletion.
+
+            Args:
+                confirmed (bool): True if the user confirmed deletion
+                False otherwise.
+            """
+            if confirmed:
+                try:
+                    self.manager.delete_volume(volume_row[0])
+                    row_key, _ = table.coordinate_to_cell_key(
+                        table.cursor_coordinate
+                    )
+                    table.remove_row(row_key)
+                    self.pop_screen()
+                    self.refresh()
+                except Exception as e:
+                    self.pop_screen()
+                    self.push_screen(
+                        ErrorScreen(f"Error deleting volume: {e}")
+                    )
+            else:
+                self.pop_screen()
+
+        self.push_screen(
+            ConfirmationScreen(
+                f"Are you sure you want to delete volume '{volume_row[0]}'?",
+                delete_callback,
+            )
+        )
+
 
 class VolumeDetailScreen(ModalScreen):
     """
@@ -156,6 +205,56 @@ class VolumeDetailScreen(ModalScreen):
         """An action to go back to the previous screen."""
         self.app.pop_screen()
         self.app.refresh()
+
+
+class ErrorScreen(ModalScreen):
+    """
+    A simple modal screen to display a message.
+    """
+
+    def __init__(self, message: str):
+        super().__init__()
+        self.message = message
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Container(id="dialog"):
+            yield Static(self.message, classes="message")
+        yield Footer()
+
+    BINDINGS = [
+        ("b", "back", "Back"),
+    ]
+
+    def action_back(self) -> None:
+        """Go back to the previous screen."""
+        self.app.pop_screen()
+
+
+class ConfirmationScreen(ModalScreen):
+    """
+    A simple modal screen to confirm an action.
+    """
+
+    def __init__(self, message: str, callback):
+        super().__init__()
+        self.message = message
+        self.callback = callback
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Container(id="dialog"):
+            yield Static(self.message, classes="question")
+            with Horizontal(classes="buttons"):
+                yield Button("No", variant="error", id="no_button")
+                yield Button("Yes", variant="success", id="yes_button")
+        yield Footer()
+
+    def on_button_pressed(self, event):
+        if event.button.id == "yes_button":
+            self.callback(True)
+        else:
+            self.callback(False)
 
 
 if __name__ == "__main__":  # pragma: no cover

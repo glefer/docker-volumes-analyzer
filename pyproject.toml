@@ -1,7 +1,7 @@
 [project]
 name = "docker-volume-analyzer"
 version = "0.1.0"
-description = ""
+description = "Docker volume analyzer"
 authors = [
     {name = "Grégory LEFER",email = "contact@glefer.fr"}
 ]
