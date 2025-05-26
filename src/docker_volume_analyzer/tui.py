@@ -1,3 +1,5 @@
+import os
+
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.screen import ModalScreen
@@ -21,7 +23,12 @@ class DockerTUI(App):
 
     def __init__(self):
         super().__init__()
-        self.title = "Docker Volume Analyzer"
+        app_version = os.getenv("APP_VERSION", None)
+        self.title = (
+            f"Docker Volume Analyzer (v{app_version})"
+            if app_version
+            else "Docker Volume Analyzer"
+        )
         self.manager = VolumeManager()
         self.volumes = None
 

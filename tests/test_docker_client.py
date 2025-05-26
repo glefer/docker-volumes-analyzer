@@ -1,8 +1,10 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import docker
+import pytest
 
 from docker_volume_analyzer.docker_client import DockerClient
+from docker_volume_analyzer.errors import DockerNotAvailableError
 
 
 def test_list_volumes():
@@ -100,3 +102,11 @@ def test_get_volume_size():
     size = docker_client.get_volume_size("volume_name")
 
     assert size == "10M"
+
+
+def test_docker_not_available_error():
+    # Mock docker.from_env to raise DockerException
+    with patch("docker.from_env", side_effect=docker.errors.DockerException):
+        # Assert that DockerNotAvailableError is raised
+        with pytest.raises(DockerNotAvailableError):
+            DockerClient()
