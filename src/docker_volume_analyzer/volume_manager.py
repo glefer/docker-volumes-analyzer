@@ -1,4 +1,5 @@
 from docker_volume_analyzer.docker_client import DockerClient
+from docker_volume_analyzer.filesystem import parse_find_output
 
 
 class VolumeManager:
@@ -32,7 +33,7 @@ class VolumeManager:
         Return all Docker containers and their volumes.
 
         Returns:
-            dict: Dictionary with volume names as keys and
+            dict: Dictionary with volume names as keys and parse_find_output
                     container information (name, mountpoint, etc.) as values.
         """
         containers_by_volumes = {}
@@ -80,3 +81,21 @@ class VolumeManager:
             return True
         except Exception:
             return False
+
+    def get_volume_tree(self, volume_name: str) -> dict:
+        """
+        Get a tree structure of the files in a Docker volume.
+
+        Args:
+            volume_name (str): Name of the Docker volume.
+
+        Returns:
+            dict: A dictionary representing the file tree structure.
+        """
+        find_result = self.client.get_directory_informations_with_find(
+            volume_name, directory=None
+        )
+        if not find_result:
+            return {}
+
+        return parse_find_output(find_result).compute_directory_sizes()

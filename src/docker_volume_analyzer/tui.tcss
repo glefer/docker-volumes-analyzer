@@ -17,7 +17,7 @@ Screen {
 }
 
 #dialog {
-    height: 70%;
+    height: 90%;
     background: $panel;
     color: $text;
     border: tall $background;
@@ -54,4 +54,30 @@ Button {
     padding: 0 1;
     height: auto;
     color: white;
+}
+
+#file_tree{
+    height: 100%;
+}
+
+
+/* Liste des raccourcis en ligne */
+.shortcuts-list {
+    align: left middle;
+    padding: 0 1;
+}
+
+/* Élément individuel de raccourci */
+.shortcut-desc {
+    color: $footer-description-foreground;
+    padding-left: 1;
+    padding-right: 2;
+}
+
+.shortcut{
+        width: auto;
+}
+
+.shortcut-key{
+    color: $footer-key-foreground;
 }

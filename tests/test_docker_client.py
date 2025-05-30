@@ -105,9 +105,7 @@ def test_get_volume_size():
 
 
 def test_docker_not_available_error():
-    # Mock docker.from_env to raise DockerException
     with patch("docker.from_env", side_effect=docker.errors.DockerException):
-        # Assert that DockerNotAvailableError is raised
         with pytest.raises(DockerNotAvailableError):
             DockerClient()
 
@@ -170,3 +168,122 @@ def test_remove_volume_api_error():
 
     mock_client.volumes.get.assert_called_with("test_volume")
     mock_volume.remove.assert_called_with(force=True)
+
+
+def test_get_directory_informations_with_find():
+    """
+    Test the get_directory_informations_with_find method of DockerClient.
+    """
+    mock_client = MagicMock()
+    mock_client.containers.run.return_value = (
+        b"directory|/mnt/docker_volume/test_dir|4096"
+        b"|drwxr-xr-x|user|group|1633024800\n"
+        b"file|/mnt/docker_volume/test_dir/file.txt|1024"
+        b"|-rw-r--r--|user|group|1633024800"
+    )
+
+    docker_client = DockerClient()
+    docker_client.client = mock_client
+
+    output = docker_client.get_directory_informations_with_find(
+        "test_volume", "test_dir"
+    )
+
+    docker_client.client.containers.run.assert_called_with(
+        image="alpine",
+        command=[
+            "sh",
+            "-c",
+            "find /mnt/docker_volume/test_dir -exec stat "
+            "-c '%F|%n|%s|%A|%U|%G|%Y' {} \\;",
+        ],
+        volumes={"test_volume": {"bind": "/mnt/docker_volume", "mode": "ro"}},
+        remove=True,
+        stdout=True,
+        stderr=False,
+    )
+
+    assert output == (
+        "directory|/mnt/docker_volume/test_dir|4096"
+        "|drwxr-xr-x|user|group|1633024800\n"
+        "file|/mnt/docker_volume/test_dir/file.txt|1024"
+        "|-rw-r--r--|user|group|1633024800"
+    )
+
+
+def test_get_directory_informations_with_find_no_directory():
+    """
+    Test the get_directory_informations_with_find method of DockerClient
+    when no directory is specified.
+    """
+    mock_client = MagicMock()
+    mock_client.containers.run.return_value = (
+        b"directory|/mnt/docker_volume|4096"
+        b"|drwxr-xr-x|user|group|1633024800\n"
+        b"file|/mnt/docker_volume/file.txt|1024"
+        b"|-rw-r--r--|user|group|1633024800"
+    )
+
+    docker_client = DockerClient()
+    docker_client.client = mock_client
+
+    output = docker_client.get_directory_informations_with_find("test_volume")
+
+    docker_client.client.containers.run.assert_called_with(
+        image="alpine",
+        command=[
+            "sh",
+            "-c",
+            "find /mnt/docker_volume -exec stat "
+            "-c '%F|%n|%s|%A|%U|%G|%Y' {} \\;",
+        ],
+        volumes={"test_volume": {"bind": "/mnt/docker_volume", "mode": "ro"}},
+        remove=True,
+        stdout=True,
+        stderr=False,
+    )
+
+    assert output == (
+        "directory|/mnt/docker_volume|4096"
+        "|drwxr-xr-x|user|group|1633024800\n"
+        "file|/mnt/docker_volume/file.txt|1024"
+        "|-rw-r--r--|user|group|1633024800"
+    )
+
+
+def test_get_directory_informations_with_find_error():
+    """
+    Test the get_directory_informations_with_find method of DockerClient
+    when an error occurs.
+    """
+    mock_client = MagicMock()
+    mock_client.containers.run.side_effect = docker.errors.ContainerError(
+        container=MagicMock(),
+        exit_status=1,
+        command="find",
+        image="alpine",
+        stderr="error",
+    )
+
+    docker_client = DockerClient()
+    docker_client.client = mock_client
+
+    output = docker_client.get_directory_informations_with_find(
+        "test_volume", "test_dir"
+    )
+
+    docker_client.client.containers.run.assert_called_with(
+        image="alpine",
+        command=[
+            "sh",
+            "-c",
+            "find /mnt/docker_volume/test_dir -exec stat "
+            "-c '%F|%n|%s|%A|%U|%G|%Y' {} \\;",
+        ],
+        volumes={"test_volume": {"bind": "/mnt/docker_volume", "mode": "ro"}},
+        remove=True,
+        stdout=True,
+        stderr=False,
+    )
+
+    assert output is None
