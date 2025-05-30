@@ -1,7 +1,9 @@
 import os
 
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
+from textual.events import Key
 from textual.screen import ModalScreen
 from textual.widgets import Button, DataTable, Footer, Header, Static
 
@@ -19,6 +21,7 @@ class DockerTUI(App):
         ("ctrl+q", "quit", "Quit"),
         ("i", "information", "Show information"),
         ("d", "delete_volume", "Delete volume"),
+        ("b", "browse", "Browse volume"),
     ]
     CSS_PATH = "tui.tcss"
 
@@ -139,6 +142,18 @@ class DockerTUI(App):
             )
         )
 
+    def action_browse(self):
+        """
+        An action to browse the contents of the selected volume.
+        """
+
+        table = self.query_one(DataTable)
+        selected_row = table.cursor_row
+
+        volume_row = table.get_row_at(selected_row)
+
+        self.push_screen(VolumeBrowserScreen(self.app.manager, volume_row[0]))
+
 
 class VolumeDetailScreen(ModalScreen):
     """
@@ -242,19 +257,126 @@ class ConfirmationScreen(ModalScreen):
         self.callback = callback
 
     def compose(self) -> ComposeResult:
-        yield Header()
         with Container(id="dialog"):
             yield Static(self.message, classes="question")
             with Horizontal(classes="buttons"):
                 yield Button("No", variant="error", id="no_button")
                 yield Button("Yes", variant="success", id="yes_button")
-        yield Footer()
 
     def on_button_pressed(self, event):
-        if event.button.id == "yes_button":
-            self.callback(True)
-        else:
-            self.callback(False)
+        self.callback(event.button.id == "yes_button")
+
+
+class VolumeBrowserScreen(ModalScreen):
+    """
+    A modal screen to browse the contents of a Docker volume.
+    """
+
+    BINDINGS = [
+        ("b", "back", "Back"),
+        Binding("enter", "select_cursor", "Select", show=True),
+    ]
+
+    ICON_DIRECTORY = "📁 "
+    ICON_FILE = "📄 "
+
+    def __init__(self, volume_manager: VolumeManager, volume_name: str):
+        super().__init__()
+        self.volume_name = volume_name
+        self.volume_manager = volume_manager
+        self.volume_tree = self.volume_manager.get_volume_tree(volume_name)
+        self.current_path = ""
+
+    def compose(self) -> ComposeResult:
+        with Container(id="dialog"):
+
+            yield Static(
+                f"[b]Browsing volume:[/b] {self.volume_name}",
+                classes="title",
+            )
+            yield Static(
+                f"[b]Current path:[/b] {self.current_path}",
+                id="current_path",
+            )
+            yield DataTable(
+                id="file_tree",
+                cursor_type="row",
+                show_cursor=True,
+                classes="file-tree",
+                zebra_stripes=True,
+            )
+        with Container(id="shortcuts", classes="shortcuts-container"):
+            with Horizontal(classes="shortcuts-list"):
+                yield Static("[b]Enter:[/b]", classes="shortcut shortcut-key")
+                yield Static(
+                    "Open selected directory", classes="shortcut shortcut-desc"
+                )
+                yield Static(
+                    "[b]Backspace:[/b]", classes="shortcut shortcut-key"
+                )
+                yield Static(
+                    "Open parent directory", classes="shortcut shortcut-desc"
+                )
+
+    def on_mount(self) -> None:
+        """Load the file tree when the screen is mounted."""
+        table = self.query_one(DataTable)
+        table.add_columns("", "Name", "Size", "Last Modified")
+        self.load_data()
+
+    def load_data(self) -> None:
+
+        table = self.query_one(DataTable)
+        table.clear()
+        directory_informations = self.volume_tree.index.get(
+            self.current_path, {}
+        )
+        if not directory_informations:
+            self.query_one(DataTable).add_row(
+                "No files found in this directory."
+            )
+            return ()
+
+        for name, node in directory_informations.childrens.items():
+            table.add_row(
+                (
+                    f"{self.ICON_DIRECTORY}"
+                    if node.is_directory
+                    else f"{self.ICON_FILE}"
+                ),
+                name,
+                f"{node.size} bytes",
+                node.mtime.strftime("%Y-%m-%d %H:%M:%S"),
+            )
+
+        self.query_one("#current_path").update(
+            f"[b]Current path:[/b] {self.current_path}/"
+        )
+
+    def action_back(self) -> None:
+        """An action to go back to the previous screen."""
+        self.app.pop_screen()
+        self.app.refresh()
+
+    def on_key(self, event: Key) -> None:
+        table = self.query_one(DataTable)
+        if event.key == "enter":
+            selected = table.cursor_row
+            row_data = table.get_row_at(selected)
+            selected_name = row_data[1]
+            selected_node = self.volume_tree.index.get(
+                self.current_path, {}
+            ).childrens.get(selected_name)
+
+            if selected_node and selected_node.is_directory:
+                self.current_path = (
+                    f"{self.current_path}/{selected_name}".strip("/")
+                )
+                self.load_data()
+        elif event.key == "backspace":
+            self.current_path = os.path.dirname(self.current_path)
+            table = self.query_one(DataTable)
+            self.load_data()
 
 
 if __name__ == "__main__":  # pragma: no cover

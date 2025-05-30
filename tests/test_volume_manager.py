@@ -1,6 +1,6 @@
 import random
 from typing import List
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from docker_volume_analyzer.volume_manager import VolumeManager
 
@@ -95,7 +95,6 @@ def test_get_volumes() -> None:
         lambda name: int(name.replace("volume", "")) * 10 + 10
     )
 
-    # Injecte dans VolumeManager
     volume_manager = VolumeManager()
     volume_manager.client = mock_client
 
@@ -108,7 +107,6 @@ def test_delete_volume_success() -> None:
     mock_client = MagicMock()
     mock_client.remove_volume.return_value = True
 
-    # Injecte dans VolumeManager
     volume_manager = VolumeManager()
     volume_manager.client = mock_client
 
@@ -123,9 +121,78 @@ def test_delete_volume_failure() -> None:
 
     mock_client.remove_volume.side_effect = Exception("Volume not found")
 
-    # Injecte dans VolumeManager
     volume_manager = VolumeManager()
     volume_manager.client = mock_client
 
     assert volume_manager.delete_volume(volume_name) is False
     mock_client.remove_volume.assert_called_once_with(volume_name)
+
+
+def test_get_volume_tree_success() -> None:
+    volume_name = "test_volume"
+    mock_find_output = [
+        {"path": "/file1.txt", "size": 100},
+        {"path": "/dir1/file2.txt", "size": 200},
+        {"path": "/dir1/file3.txt", "size": 300},
+        {"path": "/dir2/file4.txt", "size": 400},
+    ]
+    expected_tree = {
+        "name": "/",
+        "size": 1000,
+        "childrens": [
+            {"name": "file1.txt", "size": 100, "childrens": []},
+            {
+                "name": "dir1",
+                "size": 500,
+                "childrens": [
+                    {"name": "file2.txt", "size": 200, "childrens": []},
+                    {"name": "file3.txt", "size": 300, "childrens": []},
+                ],
+            },
+            {
+                "name": "dir2",
+                "size": 400,
+                "childrens": [
+                    {"name": "file4.txt", "size": 400, "childrens": []},
+                ],
+            },
+        ],
+    }
+
+    mock_client = MagicMock()
+    (mock_client.get_directory_informations_with_find).return_value = (
+        mock_find_output
+    )
+
+    mock_parse_find_output = MagicMock()
+    (
+        mock_parse_find_output.return_value.compute_directory_sizes
+    ).return_value = expected_tree
+
+    volume_manager = VolumeManager()
+    volume_manager.client = mock_client
+
+    with patch(
+        "docker_volume_analyzer.volume_manager.parse_find_output",
+        mock_parse_find_output,
+    ):
+        assert volume_manager.get_volume_tree(volume_name) == expected_tree
+        (
+            mock_client.get_directory_informations_with_find
+        ).assert_called_once_with(volume_name, directory=None)
+        mock_parse_find_output.assert_called_once_with(mock_find_output)
+
+
+def test_get_volume_tree_empty() -> None:
+    volume_name = "empty_volume"
+
+    mock_client = MagicMock()
+    mock_client.get_directory_informations_with_find.return_value = []
+
+    volume_manager = VolumeManager()
+    volume_manager.client = mock_client
+
+    assert volume_manager.get_volume_tree(volume_name) == {}
+    mock_client.get_directory_informations_with_find.assert_called_once_with(
+        volume_name, directory=None
+    )

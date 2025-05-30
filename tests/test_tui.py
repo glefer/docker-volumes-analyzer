@@ -1,12 +1,14 @@
 from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
-from textual.widgets import Button, DataTable
+from textual.events import Key
+from textual.widgets import Button, DataTable, Static
 
 from docker_volume_analyzer.tui import (
     ConfirmationScreen,
     DockerTUI,
     ErrorScreen,
+    VolumeBrowserScreen,
     VolumeDetailScreen,
 )
 
@@ -37,7 +39,7 @@ async def test_on_mount():
         "docker_volume_analyzer.tui.VolumeManager", return_value=mock_manager
     ):
         async with DockerTUI().run_test() as pilot:
-            await pilot.pause()  # Wait for the interface to initialize
+            await pilot.pause()
 
             app = pilot.app
             table: DataTable = app.query_one(
@@ -100,7 +102,7 @@ async def test_action_information():
                 "#volumes_table", expect_type=DataTable
             )
             table.add_row("volume1", "10GB", 1, "2023-01-01T00:00:00Z")
-            table.cursor_type = 0  # Move the cursor to the first row
+            table.cursor_type = 0
 
             app.action_information()
             assert isinstance(app.screen_stack[-1], VolumeDetailScreen)
@@ -151,7 +153,6 @@ async def test_action_information_no_selection():
                 "#volumes_table", expect_type=DataTable
             )
 
-            # Patch cursor_row to simulate no row being selected
             with patch.object(
                 type(table), "cursor_row", new_callable=PropertyMock
             ) as mock_cursor_row:
@@ -159,7 +160,6 @@ async def test_action_information_no_selection():
 
                 app.action_information()
 
-                # Assertions: no new screen was pushed
                 assert len(app.screen_stack) == 1
                 assert not isinstance(app.screen_stack[-1], VolumeDetailScreen)
 
@@ -176,10 +176,8 @@ async def test_action_previous_removes_screen_and_refreshes():
 
     screen = VolumeDetailScreen(volume_info)
 
-    # Création d'un mock pour app avec les méthodes pop_screen et refresh
     mock_app = MagicMock()
 
-    # Patch la propriété 'app' du screen pour retourner mock_app
     with patch.object(
         type(screen), "app", new_callable=PropertyMock
     ) as mock_app_prop:
@@ -218,7 +216,6 @@ async def test_action_delete_volume_with_no_selection():
                 "#volumes_table", expect_type=DataTable
             )
 
-            # Patch cursor_row to simulate no row being selected
             with patch.object(
                 type(table), "cursor_row", new_callable=PropertyMock
             ) as mock_cursor_row:
@@ -226,7 +223,6 @@ async def test_action_delete_volume_with_no_selection():
 
                 app.action_delete_volume()
 
-                # Assertions: no new screen was pushed
                 assert len(app.screen_stack) == 1
 
 
@@ -260,13 +256,10 @@ async def test_action_delete_volume_with_attached_containers():
             with patch.object(
                 type(table), "cursor_row", new_callable=PropertyMock
             ) as mock_cursor_row:
-                mock_cursor_row.return_value = (
-                    0  # Simulate the cursor on the first row
-                )
+                mock_cursor_row.return_value = 0
 
             app.action_delete_volume()
 
-            # Assertions: an error screen was pushed
             assert isinstance(app.screen_stack[-1], ErrorScreen)
             assert (
                 app.screen_stack[-1].message
@@ -302,19 +295,16 @@ async def test_action_delete_volume_success():
             )
             table.cursor_type = 0
 
-            # Simulate user confirming the deletion
             app.action_delete_volume()
             confirmation_screen = app.screen_stack[-1]
             assert isinstance(confirmation_screen, ConfirmationScreen)
 
-            # Simulate pressing "Yes" on the confirmation screen
             confirmation_screen.on_button_pressed(
                 Button.Pressed(Button("Yes", id="yes_button"))
             )
 
-            # Assertions
             mock_manager.delete_volume.assert_called_once_with("volume1")
-            assert len(table.rows) == 0  # Volume was removed from the table
+            assert len(table.rows) == 0
 
 
 @pytest.mark.asyncio
@@ -345,17 +335,14 @@ async def test_action_delete_volume_not_confirmed():
             )
             table.cursor_type = 0
 
-            # Simulate user confirming the deletion
             app.action_delete_volume()
             confirmation_screen = app.screen_stack[-1]
             assert isinstance(confirmation_screen, ConfirmationScreen)
 
-            # Simulate pressing "No" on the confirmation screen
             confirmation_screen.on_button_pressed(
                 Button.Pressed(Button("No", id="no_button"))
             )
 
-            # Assertions
             mock_manager.delete_volume.assert_not_called()
             assert len(table.rows) == 1
 
@@ -389,17 +376,14 @@ async def test_action_delete_volume_throw_exception():
             )
             table.cursor_type = 0
 
-            # Simulate user confirming the deletion
             app.action_delete_volume()
             confirmation_screen = app.screen_stack[-1]
             assert isinstance(confirmation_screen, ConfirmationScreen)
 
-            # Simulate pressing "Yes" on the confirmation screen
             confirmation_screen.on_button_pressed(
                 Button.Pressed(Button("Yes", id="yes_button"))
             )
 
-            # Assertions: an error screen was pushed
             assert isinstance(app.screen_stack[-1], ErrorScreen)
             assert (
                 app.screen_stack[-1].message
@@ -415,17 +399,269 @@ async def test_error_screen_action_back():
     error_message = "This is an error message."
     screen = ErrorScreen(error_message)
 
-    # Create a mock app to test screen behavior
     mock_app = MagicMock()
 
-    # Patch the 'app' property of the screen to return the mock app
     with patch.object(
         type(screen), "app", new_callable=PropertyMock
     ) as mock_app_prop:
         mock_app_prop.return_value = mock_app
 
-        # Call the action_back method
         screen.action_back()
 
-        # Assert that the screen was popped
         mock_app.pop_screen.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_action_browse():
+    """
+    Test that the action_browse method pushes the VolumeBrowserScreen
+    with the correct volume name.
+    """
+    mock_manager = MagicMock()
+    mock_manager.get_volumes.return_value = {
+        "volume1": {
+            "name": "volume1",
+            "size": "10GB",
+            "containers": [],
+            "created_at": "2023-01-01T00:00:00Z",
+        }
+    }
+
+    with patch(
+        "docker_volume_analyzer.tui.VolumeManager", return_value=mock_manager
+    ):
+        async with DockerTUI().run_test() as pilot:
+            app = pilot.app
+
+            app.query_one("#volumes_table", expect_type=DataTable).add_row(
+                "volume1", "10GB", 0, "2023-01-01T00:00:00Z"
+            )
+            app.action_browse()
+            await pilot.pause()
+
+            screen = app.screen_stack[-1]
+            assert isinstance(screen, VolumeBrowserScreen)
+            assert screen.volume_name == "volume1"
+            assert screen.volume_manager == mock_manager
+            assert (
+                screen.query_one(
+                    "#current_path", expect_type=Static
+                ).renderable
+                == "[b]Current path:[/b] /"
+            )
+
+
+@pytest.mark.asyncio
+async def test_volume_browser_screen_initialization():
+    """
+    Test that the VolumeBrowserScreen initializes correctly
+    with the given volume name and manager.
+    """
+    mock_manager = MagicMock()
+    mock_manager.get_volume_tree.return_value = MagicMock(index={})
+
+    screen = VolumeBrowserScreen(mock_manager, "test_volume")
+
+    assert screen.volume_name == "test_volume"
+    assert screen.volume_manager == mock_manager
+    assert screen.current_path == ""
+    assert screen.volume_tree == mock_manager.get_volume_tree.return_value
+
+
+@pytest.mark.asyncio
+async def test_volume_browser_screen_load_data_empty_directory():
+    """
+    Test that the VolumeBrowserScreen displays
+    a message when the directory is empty.
+    """
+    mock_manager = MagicMock()
+    mock_manager.get_volume_tree.return_value = MagicMock(index={})
+
+    screen = VolumeBrowserScreen(mock_manager, "test_volume")
+
+    with patch.object(
+        screen, "query_one", return_value=MagicMock()
+    ) as mock_query:
+        screen.compose()
+        screen.load_data()
+
+        mock_query.assert_called_with(DataTable)
+        mock_query.return_value.clear.assert_called_once()
+        mock_query.return_value.add_row.assert_called_once_with(
+            "No files found in this directory."
+        )
+
+
+@pytest.mark.asyncio
+async def test_volume_browser_screen_load_data_with_files():
+    """
+    Test that the VolumeBrowserScreen loads
+    and displays files and directories correctly.
+    """
+    mock_manager = MagicMock()
+    mock_node = MagicMock()
+    mock_node.is_directory = True
+    mock_node.size = 0
+    mock_node.mtime.strftime.return_value = "2023-01-01 00:00:00"
+
+    mock_manager.get_volume_tree.return_value = MagicMock(
+        index={
+            "": MagicMock(
+                childrens={
+                    "folder1": mock_node,
+                    "file1.txt": MagicMock(
+                        is_directory=False,
+                        size=1024,
+                        mtime=MagicMock(
+                            strftime=lambda fmt: "2023-01-01 00:00:00"
+                        ),
+                    ),
+                }
+            )
+        }
+    )
+
+    screen = VolumeBrowserScreen(mock_manager, "test_volume")
+
+    mock_table = MagicMock()
+    mock_current_path = MagicMock()
+    with patch.object(
+        screen,
+        "query_one",
+        side_effect=lambda selector: (
+            mock_table if selector == DataTable else mock_current_path
+        ),
+    ) as mock_query:
+        screen.load_data()
+
+        mock_query.assert_any_call(DataTable)
+        mock_table.clear.assert_called_once()
+        mock_table.add_row.assert_any_call(
+            "📁 ", "folder1", "0 bytes", "2023-01-01 00:00:00"
+        )
+        mock_table.add_row.assert_any_call(
+            "📄 ", "file1.txt", "1024 bytes", "2023-01-01 00:00:00"
+        )
+
+        mock_query.assert_any_call("#current_path")
+        mock_current_path.update.assert_called_once_with(
+            "[b]Current path:[/b] /"
+        )
+
+
+@pytest.mark.asyncio
+async def test_volume_browser_screen_action_back():
+    """
+    Test that the action_back method pops the screen and refreshes the app.
+    """
+    mock_app = MagicMock()
+    screen = VolumeBrowserScreen(MagicMock(), "test_volume")
+
+    with patch.object(
+        type(screen), "app", new_callable=PropertyMock
+    ) as mock_app_prop:
+        mock_app_prop.return_value = mock_app
+
+        screen.action_back()
+
+        mock_app.pop_screen.assert_called_once()
+        mock_app.refresh.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_volume_browser_screen_on_key_enter_directory():
+    """
+    Test that pressing 'enter' navigates into a directory.
+    """
+    mock_manager = MagicMock()
+    mock_node = MagicMock(is_directory=True)
+    mock_manager.get_volume_tree.return_value = MagicMock(
+        index={
+            "": MagicMock(childrens={"folder1": mock_node}),
+            "folder1": MagicMock(childrens={}),
+        }
+    )
+
+    screen = VolumeBrowserScreen(mock_manager, "test_volume")
+    screen.current_path = ""
+
+    with patch.object(
+        screen, "query_one", return_value=MagicMock()
+    ) as mock_query:
+        mock_query.return_value.cursor_row = 0
+        mock_query.return_value.get_row_at.return_value = ["📁 ", "folder1"]
+
+        screen.on_key(Key("enter", None))
+
+        assert screen.current_path == "folder1"
+        mock_query.return_value.clear.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_volume_browser_screen_on_key_backspace():
+    """
+    Test that pressing 'backspace' navigates to the parent directory.
+    """
+    mock_manager = MagicMock()
+    mock_manager.get_volume_tree.return_value = MagicMock(index={})
+
+    screen = VolumeBrowserScreen(mock_manager, "test_volume")
+    screen.current_path = "folder1/subfolder"
+
+    with patch.object(
+        screen, "query_one", return_value=MagicMock()
+    ) as mock_query:
+        screen.on_key(Key("backspace", None))
+
+        assert screen.current_path == "folder1"
+        mock_query.return_value.clear.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_on_key_enter_invalid_selection():
+    """
+    Test that pressing 'enter' does nothing if the selected item is invalid.
+    """
+    mock_manager = MagicMock()
+    mock_manager.get_volume_tree.return_value = MagicMock(index={})
+
+    screen = VolumeBrowserScreen(mock_manager, "test_volume")
+    screen.current_path = ""
+
+    mock_node = MagicMock()
+    mock_node.childrens = {}
+    screen.volume_tree.index = {"": mock_node}
+
+    with patch.object(
+        screen, "query_one", return_value=MagicMock()
+    ) as mock_query:
+        mock_query.return_value.cursor_row = 0
+        mock_query.return_value.get_row_at.return_value = [
+            "📄 ",
+            "invalid_item",
+        ]
+
+        screen.on_key(Key("enter", None))
+
+        assert screen.current_path == ""
+        mock_query.return_value.clear.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_on_key_other_key():
+    """
+    Test that pressing a key other than 'enter' or 'backspace' does nothing.
+    """
+    mock_manager = MagicMock()
+    mock_manager.get_volume_tree.return_value = MagicMock(index={})
+
+    screen = VolumeBrowserScreen(mock_manager, "test_volume")
+    screen.current_path = "folder1/subfolder"
+
+    with patch.object(
+        screen, "query_one", return_value=MagicMock()
+    ) as mock_query:
+        screen.on_key(Key("space", None))
+
+        assert screen.current_path == "folder1/subfolder"
+        mock_query.return_value.clear.assert_not_called()

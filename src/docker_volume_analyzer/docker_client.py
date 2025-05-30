@@ -94,3 +94,31 @@ class DockerClient:
             raise docker.errors.APIError(
                 f"Failed to remove volume '{volume_name}': {e}"
             ) from e
+
+    def get_directory_informations_with_find(
+        self, volume_name: str, directory: str | None = None
+    ) -> Union[str, None]:
+        """
+        Gets directory information using 'find' command.
+
+        Args:
+            volume_name (str): Docker volume name.
+            directory (str): Directory path inside the volume.
+
+        Returns:
+            str | None: Output of the 'find' with stat command
+            or None if failed.
+        """
+        path = (
+            f"/mnt/docker_volume/{directory}"
+            if directory
+            else "/mnt/docker_volume"
+        )
+
+        command = [
+            "sh",
+            "-c",
+            f"find {path} -exec stat -c '%F|%n|%s|%A|%U|%G|%Y' {{}} \\;",
+        ]
+        output = self._run_in_container(command, volume_name)
+        return output if output else None
