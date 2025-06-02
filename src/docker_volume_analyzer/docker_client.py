@@ -1,14 +1,23 @@
+import re
+import time
 from typing import List, Union
 
 import docker
+from docker.errors import NotFound
+from docker.models.containers import Container
 
 from docker_volume_analyzer.errors import DockerNotAvailableError
 
 
 class DockerClient:
+
+    _SIZE_RE = re.compile(r"^\d+(\.\d+)?[KMGTP]?$")
+
     def __init__(self):
         try:
             self.client = docker.from_env()
+            self._volume_size_cache = {}
+            self._cache_timeout = 60
         except docker.errors.DockerException as e:
             raise DockerNotAvailableError from e
 
@@ -18,16 +27,24 @@ class DockerClient:
         """
         return self.client.volumes.list()
 
-    def list_containers(self) -> List[docker.models.containers.Container]:
+    def list_containers(self) -> List[Container]:
         """
-        Returns all running Docker container objects.
+        Returns all Docker container objects (running and stopped),
+        skipping containers that may have been removed during the process.
         """
-        return self.client.containers.list(all=True)
+        containers: List[Container] = []
+        for summary in self.client.api.containers(all=True):
+            try:
+                container = self.client.containers.get(summary["Id"])
+                containers.append(container)
+            except NotFound:
+                continue
+        return containers
 
     def _run_in_container(
         self,
         command: Union[str, List[str]],
-        volume_name: str,
+        volumes_name: Union[str, List[str]],
         mode: str = "ro",
     ) -> Union[str, None]:
         """
@@ -42,13 +59,26 @@ class DockerClient:
         Returns:
             str | None: Output of the command or None if failed.
         """
+
+        if isinstance(volumes_name, str):
+            volumes_binding = {
+                volumes_name: {"bind": f"/mnt/{volumes_name}", "mode": mode}
+            }
+        elif isinstance(volumes_name, list):
+            volumes_binding = {
+                name: {"bind": f"/mnt/{name}", "mode": mode}
+                for name in volumes_name
+            }
+        else:
+            raise ValueError(
+                "volumes_name must be a string or a list of strings"
+            )
+
         try:
             output = self.client.containers.run(
                 image="alpine",
                 command=command,
-                volumes={
-                    volume_name: {"bind": "/mnt/docker_volume", "mode": mode}
-                },
+                volumes=volumes_binding,
                 remove=True,
                 stdout=True,
                 stderr=False,
@@ -58,7 +88,7 @@ class DockerClient:
             print(f"[Docker Error] Command failed: {e}")
             return None
 
-    def get_volume_size(self, volume_name: str) -> str:
+    def get_volume_size(self, volume_name: Union[str, List[str]]) -> str:
         """
         Gets human-readable size of a volume using 'du -sh'.
 
@@ -110,9 +140,9 @@ class DockerClient:
             or None if failed.
         """
         path = (
-            f"/mnt/docker_volume/{directory}"
+            f"/mnt/{volume_name}/{directory}"
             if directory
-            else "/mnt/docker_volume"
+            else f"/mnt/{volume_name}"
         )
 
         command = [
@@ -122,3 +152,48 @@ class DockerClient:
         ]
         output = self._run_in_container(command, volume_name)
         return output if output else None
+
+    def get_volumes_size(
+        self, volumes_name: Union[str, List[str]], human_readable: bool = True
+    ):
+        if isinstance(volumes_name, str):
+            volumes_name = [volumes_name]
+
+        current_time = time.time()
+        cached_results = {}
+        volumes_to_query = []
+
+        for volume in volumes_name:
+            cache_entry = self._volume_size_cache.get(volume)
+            if (
+                cache_entry
+                and current_time - cache_entry["timestamp"]
+                < self._cache_timeout
+            ):
+                cached_results[volume] = cache_entry["size"]
+            else:
+                volumes_to_query.append(volume)
+
+        if volumes_to_query:
+            paths = " ".join(f"/mnt/{v}" for v in volumes_to_query)
+            cmd = ["sh", "-c", f"du -s{'h' if human_readable else ''} {paths}"]
+            output = self._run_in_container(cmd, volumes_to_query)
+
+            results = {}
+            for volume in volumes_to_query:
+                results[volume] = "0"  # Default size is "0"
+            if output:
+                for line, volume in zip(output.splitlines(), volumes_to_query):
+                    parts = line.split(maxsplit=1)
+                    if len(parts) >= 1 and self._SIZE_RE.match(parts[0]):
+                        results[volume] = parts[0]
+
+            for volume, size in results.items():
+                self._volume_size_cache[volume] = {
+                    "size": size,
+                    "timestamp": current_time,
+                }
+
+            cached_results.update(results)
+
+        return cached_results
