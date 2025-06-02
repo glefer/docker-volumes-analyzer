@@ -14,7 +14,10 @@ dependencies = [
     "pre-commit (>=4.2.0,<5.0.0)",
     "textual (>=3.0.1,<4.0.0)",
     "docker (>=7.1.0,<8.0.0)",
-    "pytest (>=8.3.5,<9.0.0)"
+    "pytest (>=8.3.5,<9.0.0)",
+    "flask (>=3.1.1,<4.0.0)",
+    "prometheus-client (>=0.22.1,<0.23.0)",
+    "gunicorn (>=23.0.0,<24.0.0)"
 ]
 
 [tool.poetry]
@@ -22,6 +25,7 @@ packages = [{include = "docker_volume_analyzer", from = "src"}]
 
 [tool.poetry.scripts]
 start = "docker_volume_analyzer.main:main"
+web = "docker_volume_analyzer.web:main"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"

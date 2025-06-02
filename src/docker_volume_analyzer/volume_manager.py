@@ -1,12 +1,14 @@
+from typing import List
+
 from docker_volume_analyzer.docker_client import DockerClient
 from docker_volume_analyzer.filesystem import parse_find_output
 
 
 class VolumeManager:
-    def __init__(self):
-        self.client = DockerClient()
+    def __init__(self, docker_client: DockerClient | None = None):
+        self.client = docker_client or DockerClient()
 
-    def get_volumes(self) -> dict:
+    def get_volumes(self, human_readable: bool = True) -> dict:
         """
         Return all Docker volumes name and mountpoint
 
@@ -15,17 +17,28 @@ class VolumeManager:
                     and mount points as values.
         """
 
+        volumes = self.client.list_volumes()
+
+        # Fetch containers associated with volumes
         containers_by_volumes = self.get_containers_by_volume()
 
+        # Fetch sizes for all volumes in a single call
+        volume_sizes = self.get_volumes_size(
+            [volume.name for volume in volumes], human_readable
+        )
+
+        # Build the result dictionary
         return {
             volume.name: {
                 "name": volume.name,
                 "mountpoint": volume.attrs.get("Mountpoint", ""),
-                "size": self.get_volume_size(volume.name),
+                "size": volume_sizes.get(
+                    volume.name, "0"
+                ),  # Use pre-fetched sizes
                 "created_at": volume.attrs.get("CreatedAt", ""),
                 "containers": containers_by_volumes.get(volume.name, []),
             }
-            for volume in self.client.list_volumes()
+            for volume in volumes
         }
 
     def get_containers_by_volume(self) -> dict:
@@ -53,18 +66,6 @@ class VolumeManager:
                     }
                 )
         return containers_by_volumes
-
-    def get_volume_size(self, volume_name: str) -> int:
-        """
-        Get the size of a Docker volume.
-
-        Args:
-            volume_name (str): Name of the Docker volume.
-
-        Returns:
-            int: Size of the volume in bytes.
-        """
-        return self.client.get_volume_size(volume_name)
 
     def delete_volume(self, volume_name: str) -> bool:
         """
@@ -99,3 +100,8 @@ class VolumeManager:
             return {}
 
         return parse_find_output(find_result).compute_directory_sizes()
+
+    def get_volumes_size(
+        self, volume_names=List[str], human_readable: bool = True
+    ) -> dict:
+        return self.client.get_volumes_size(volume_names, human_readable)

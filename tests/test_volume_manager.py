@@ -88,16 +88,25 @@ def test_get_volumes() -> None:
         num_volumes, max_containers_per_volume=5
     )
 
+    # Extraire les tailles déjà connues depuis expected
+    expected_sizes = {
+        volume_name: data["size"] for volume_name, data in expected.items()
+    }
+
+    # Configurer le client mocké
     mock_client = MagicMock()
     mock_client.list_volumes.return_value = volumes
     mock_client.list_containers.return_value = containers
-    mock_client.get_volume_size.side_effect = (
-        lambda name: int(name.replace("volume", "")) * 10 + 10
-    )
+    mock_client.get_volumes_size.side_effect = lambda *args: {
+        name: expected_sizes[name] for name in args[0]
+    }
 
     volume_manager = VolumeManager()
     volume_manager.client = mock_client
 
+    result = volume_manager.get_volumes()
+
+    assert result == expected
     assert volume_manager.get_volumes() == expected
 
 

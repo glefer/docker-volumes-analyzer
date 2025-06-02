@@ -63,6 +63,63 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -ti glefer/docker-v
 docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -ti glefer/docker-volumes-analyzer:0.1.0
 ```
 
+## Running the Application in Different Modes
+
+The application supports multiple modes of operation. You can specify the mode using the `APP_MODE` environment variable. The available modes are:
+
+- **CLI mode** (`start`): Runs the application in command-line interface mode.
+- **Web development mode** (`web`): Starts the application in web development mode.
+- **Gunicorn mode** (`gunicorn`): Runs the application using Gunicorn as the WSGI server.
+
+### Using Docker
+You can run the application in different modes by setting the `APP_MODE` environment variable when running the Docker container.
+
+#### CLI mode
+```bash
+docker run -e APP_MODE=start -v /var/run/docker.sock:/var/run/docker.sock glefer/docker-volumes-analyzer:latest
+```
+
+#### Web development mode
+```bash
+docker run -e APP_MODE=web -v /var/run/docker.sock:/var/run/docker.sock glefer/docker-volumes-analyzer:latest
+```
+
+#### Web production mode (gunicorn)
+```bash
+docker run -e APP_MODE=gunicorn -v /var/run/docker.sock:/var/run/docker.sock glefer/docker-volumes-analyzer:latest
+```
+
+### Using python locally
+If you prefer to run the application locally without Docker, you can use the entrypoint.sh script directly. Make sure you have all dependencies installed via Poetry.
+
+
+#### CLI mode
+```bash
+APP_MODE=start scripts/entrypoint.sh
+```
+
+#### Web development mode
+```bash
+APP_MODE=web scripts/entrypoint.sh
+```
+
+#### Web production mode (gunicorn)
+```bash
+APP_MODE=gunicorn scripts/entrypoint.sh
+```
+
+## Prometheus
+
+When running the application in **web** or **gunicorn** mode, it exposes a Prometheus metrics endpoint at `/metrics`. This endpoint provides detailed metrics about Docker volumes, such as:
+
+- Total number of Docker volumes.
+- Size of individual Docker volumes (in bytes).
+
+![Metrics](./doc/assets/metrics-endpoint.png)
+
+
+For more information about the metrics exposed and how to integrate them with Prometheus, refer to the [Prometheus documentation](./doc/prometheus.md).
+
 ---
 
 ## Run tests
@@ -88,7 +145,6 @@ poetry shell
 ```
 
 Formatting and checks:
-
 ```bash
 poetry run pre-commit run --all-files
 ```
