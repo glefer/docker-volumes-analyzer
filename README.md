@@ -76,7 +76,7 @@ You can run the application in different modes by setting the `APP_MODE` environ
 
 #### CLI mode
 ```bash
-docker run -e APP_MODE=start -v /var/run/docker.sock:/var/run/docker.sock glefer/docker-volumes-analyzer:latest
+docker run --rm -e APP_MODE=start -v /var/run/docker.sock:/var/run/docker.sock -ti glefer/docker-volumes-analyzer:latest
 ```
 
 #### Web development mode
