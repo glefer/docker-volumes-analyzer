@@ -2,6 +2,7 @@ import random
 from typing import List
 from unittest.mock import MagicMock, patch
 
+from docker_volume_analyzer.filesystem import FileSystem
 from docker_volume_analyzer.volume_manager import VolumeManager
 
 
@@ -189,7 +190,9 @@ def test_get_volume_tree_success() -> None:
         (
             mock_client.get_directory_informations_with_find
         ).assert_called_once_with(volume_name, directory=None)
-        mock_parse_find_output.assert_called_once_with(mock_find_output)
+        mock_parse_find_output.assert_called_once_with(
+            mock_find_output, f"/mnt/{volume_name}"
+        )
 
 
 def test_get_volume_tree_empty() -> None:
@@ -201,7 +204,43 @@ def test_get_volume_tree_empty() -> None:
     volume_manager = VolumeManager()
     volume_manager.client = mock_client
 
-    assert volume_manager.get_volume_tree(volume_name) == {}
+    result = volume_manager.get_volume_tree(volume_name)
+
+    assert isinstance(result, FileSystem)
+    assert len(result.index) == 1
+    assert result.index[""].size == 0
     mock_client.get_directory_informations_with_find.assert_called_once_with(
         volume_name, directory=None
+    )
+
+
+def test_delete_volume_file_success() -> None:
+    volume_name = "test_volume"
+    file_path = "/file_to_delete.txt"
+
+    mock_client = MagicMock()
+    mock_client.delete_volume_file.return_value = True
+
+    volume_manager = VolumeManager()
+    volume_manager.client = mock_client
+
+    assert volume_manager.delete_volume_file(volume_name, file_path) is True
+    mock_client.delete_volume_file.assert_called_once_with(
+        volume_name, file_path
+    )
+
+
+def test_delete_volume_file_failure() -> None:
+    volume_name = "test_volume"
+    file_path = "/non_existent_file.txt"
+
+    mock_client = MagicMock()
+    mock_client.delete_volume_file.side_effect = Exception("File not found")
+
+    volume_manager = VolumeManager()
+    volume_manager.client = mock_client
+
+    assert volume_manager.delete_volume_file(volume_name, file_path) is False
+    mock_client.delete_volume_file.assert_called_once_with(
+        volume_name, file_path
     )

@@ -1,7 +1,7 @@
 from typing import List
 
 from docker_volume_analyzer.docker_client import DockerClient
-from docker_volume_analyzer.filesystem import parse_find_output
+from docker_volume_analyzer.filesystem import FileSystem, parse_find_output
 
 
 class VolumeManager:
@@ -83,7 +83,7 @@ class VolumeManager:
         except Exception:
             return False
 
-    def get_volume_tree(self, volume_name: str) -> dict:
+    def get_volume_tree(self, volume_name: str) -> "FileSystem":
         """
         Get a tree structure of the files in a Docker volume.
 
@@ -97,11 +97,30 @@ class VolumeManager:
             volume_name, directory=None
         )
         if not find_result:
-            return {}
+            return FileSystem()
 
-        return parse_find_output(find_result).compute_directory_sizes()
+        return parse_find_output(
+            find_result, f"/mnt/{volume_name}"
+        ).compute_directory_sizes()
 
     def get_volumes_size(
         self, volume_names=List[str], human_readable: bool = True
     ) -> dict:
         return self.client.get_volumes_size(volume_names, human_readable)
+
+    def delete_volume_file(self, volume_name: str, file_path: str) -> bool:
+        """
+        Delete a specific file in a Docker volume.
+
+        Args:
+            volume_name (str): Name of the Docker volume.
+            file_path (str): Path to the file inside the volume.
+
+        Returns:
+            bool: True if the file was deleted successfully, False otherwise.
+        """
+        try:
+            self.client.delete_volume_file(volume_name, file_path)
+            return True
+        except Exception:
+            return False

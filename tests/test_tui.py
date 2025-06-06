@@ -665,3 +665,107 @@ async def test_on_key_other_key():
 
         assert screen.current_path == "folder1/subfolder"
         mock_query.return_value.clear.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_volume_browser_screen_on_key_delete_file_error():
+    """
+    Test that pressing 'delete' shows an error screen if deleting a file fails.
+    """
+    mock_manager = MagicMock()
+    mock_node = MagicMock(is_directory=False, path="folder1/file1.txt")
+    mock_manager.get_volume_tree.return_value = MagicMock(
+        index={"folder1": MagicMock(childrens={"file1.txt": mock_node})}
+    )
+    mock_manager.delete_volume_file.side_effect = Exception("Delete error")
+
+    screen = VolumeBrowserScreen(mock_manager, "test_volume")
+    screen.current_path = "folder1"
+
+    with (
+        patch.object(
+            screen, "query_one", return_value=MagicMock()
+        ) as mock_query,
+        patch.object(
+            type(screen), "app", new_callable=PropertyMock
+        ) as mock_app_prop,
+    ):
+        mock_app = MagicMock()
+        mock_app_prop.return_value = mock_app
+        mock_query.return_value.cursor_row = 0
+        mock_query.return_value.get_row_at.return_value = ["📄 ", "file1.txt"]
+
+        screen.on_key(Key("delete", None))
+
+        mock_manager.delete_volume_file.assert_called_once_with(
+            "test_volume", "folder1/file1.txt"
+        )
+        screen.volume_tree.delete_node.assert_not_called()
+        mock_app.push_screen.assert_called_once()
+        assert isinstance(mock_app.push_screen.call_args[0][0], ErrorScreen)
+        assert (
+            mock_app.push_screen.call_args[0][0].message
+            == "Error deleting file: Delete error"
+        )
+
+
+@pytest.mark.asyncio
+async def test_volume_browser_screen_on_key_delete_file_success():
+    """
+    Test that pressing 'delete' successfully deletes a file and updates the UI.
+    """
+    mock_manager = MagicMock()
+    mock_node = MagicMock(is_directory=False, path="folder1/file1.txt")
+    mock_manager.get_volume_tree.return_value = MagicMock(
+        index={"folder1": MagicMock(childrens={"file1.txt": mock_node})}
+    )
+
+    screen = VolumeBrowserScreen(mock_manager, "test_volume")
+    screen.current_path = "folder1"
+
+    with patch.object(
+        screen, "query_one", return_value=MagicMock()
+    ) as mock_query:
+        mock_query.return_value.cursor_row = 0
+        mock_query.return_value.get_row_at.return_value = ["📄 ", "file1.txt"]
+
+        screen.on_key(Key("delete", None))
+
+        screen.volume_tree.delete_node.assert_called_once_with(
+            "folder1/file1.txt"
+        )
+
+        mock_manager.delete_volume_file.assert_called_once_with(
+            "test_volume", "folder1/file1.txt"
+        )
+
+
+@pytest.mark.asyncio
+async def test_volume_browser_screen_on_key_delete_invalid_node():
+    """
+    Test that pressing 'delete' does nothing if the selected node is invalid.
+    """
+    mock_manager = MagicMock()
+    mock_node = MagicMock()
+    mock_node.childrens = {}  # Ensure 'childrens' attribute exists
+    mock_manager.get_volume_tree.return_value = MagicMock(
+        index={"": mock_node}
+    )
+
+    screen = VolumeBrowserScreen(mock_manager, "test_volume")
+    screen.current_path = ""
+
+    with patch.object(
+        screen, "query_one", return_value=MagicMock()
+    ) as mock_query:
+        mock_query.return_value.cursor_row = 0
+        mock_query.return_value.get_row_at.return_value = [
+            "📄 ",
+            "invalid_item",
+        ]
+
+        screen.on_key(Key("delete", None))
+
+        mock_manager.delete_volume_file.assert_not_called()
+        screen.volume_tree.delete_node.assert_not_called()
+        mock_query.return_value.clear.assert_not_called()

@@ -84,6 +84,43 @@ class FileSystem:
                 self.index[full_path] = n
             current = self.index[full_path]
 
+    def delete_node(self, path: str) -> "FileSystem":
+        """
+        Deletes a node and its children from the file system and updates
+        the sizes of parent directories.
+
+        Args:
+            path (str): The path of the node to delete.
+
+        Returns:
+            FileSystem: The updated file system after deletion.
+        """
+        if path not in self.index:
+            raise ValueError(
+                f"Path '{path}' does not exist in the file system."
+            )
+
+        node_to_delete = self.index[path]
+
+        def delete_recursively(node: FileNode):
+            for child in list(node.childrens.values()):
+                delete_recursively(child)
+            del self.index[node.path]
+
+        delete_recursively(node_to_delete)
+
+        if node_to_delete.parent:
+            parent = node_to_delete.parent
+            del parent.childrens[node_to_delete.name]
+
+            size_change = node_to_delete.size
+            current = parent
+            while current:
+                current.size -= size_change
+                current = current.parent
+
+        return self
+
     def compute_directory_sizes(self) -> "FileSystem":
         """
         Compute the total size of each directory by summing the sizes

@@ -135,3 +135,47 @@ def test_parse_find_output_empty():
     fs = parse_find_output("")
 
     assert len(fs.index) == 1
+
+
+def test_delete_root_node(fs, make_file):
+    """Test deleting the root node from the FileSystem."""
+    fs.add_node(make_file("file1.txt", "file1.txt", 1024))
+    fs.compute_directory_sizes()
+
+    assert "" in fs.index
+    assert "file1.txt" in fs.index
+
+    fs.delete_node("")
+
+    assert "" not in fs.index
+    assert "file1.txt" not in fs.index
+
+
+def test_delete_node(fs, make_file):
+    """Test deleting a node from the FileSystem."""
+    fs.add_node(make_file("file1.txt", "dir1/file1.txt", 1024))
+    fs.add_node(make_file("file2.txt", "dir1/file2.txt", 2048))
+    fs.add_node(make_file("file3.txt", "dir1/subdir/file3.txt", 512))
+    fs.compute_directory_sizes()
+
+    assert "dir1" in fs.index
+    assert "dir1/file1.txt" in fs.index
+    assert "dir1/file2.txt" in fs.index
+    assert "dir1/subdir" in fs.index
+    assert "dir1/subdir/file3.txt" in fs.index
+
+    fs.delete_node("dir1/file1.txt")
+    assert "dir1/file1.txt" not in fs.index
+    assert "dir1" in fs.index
+    assert fs.index["dir1"].size == 2560  # Updated size after deletion
+
+    fs.delete_node("dir1/subdir")
+    assert "dir1/subdir" not in fs.index
+    assert "dir1/subdir/file3.txt" not in fs.index
+    assert fs.index["dir1"].size == 2048  # Updated size after deletion
+
+    with pytest.raises(
+        ValueError,
+        match="Path 'nonexistent' does not exist in the file system.",
+    ):
+        fs.delete_node("nonexistent")
