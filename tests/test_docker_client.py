@@ -125,7 +125,7 @@ def test_run_in_container_error():
 
     output = docker_client._run_in_container("ls", "volume_name")
 
-    assert output is None
+    assert output is False
 
 
 def test_get_volume_size():
@@ -516,3 +516,59 @@ def test_get_volumes_size_with_cache(
         )
     else:
         mock_client.containers.run.assert_not_called()
+
+
+def test_delete_volume_file_success():
+    """
+    Test the delete_volume_file method of DockerClient
+    when the file is successfully deleted.
+    """
+    mock_client = MagicMock()
+    mock_client.containers.run.return_value = b""
+
+    docker_client = DockerClient()
+    docker_client.client = mock_client
+
+    result = docker_client.delete_volume_file("test_volume", "test_file.txt")
+
+    docker_client.client.containers.run.assert_called_with(
+        image="alpine",
+        command=["sh", "-c", "rm -f /mnt/test_volume/test_file.txt"],
+        volumes={"test_volume": {"bind": "/mnt/test_volume", "mode": "rw"}},
+        remove=True,
+        stdout=True,
+        stderr=False,
+    )
+
+    assert result is True
+
+
+def test_delete_volume_file_failure():
+    """
+    Test the delete_volume_file method of DockerClient
+    when the file deletion fails.
+    """
+    mock_client = MagicMock()
+    mock_client.containers.run.side_effect = docker.errors.ContainerError(
+        container=MagicMock(),
+        exit_status=1,
+        command="rm",
+        image="alpine",
+        stderr="error",
+    )
+
+    docker_client = DockerClient()
+    docker_client.client = mock_client
+
+    result = docker_client.delete_volume_file("test_volume", "test_file.txt")
+
+    docker_client.client.containers.run.assert_called_with(
+        image="alpine",
+        command=["sh", "-c", "rm -f /mnt/test_volume/test_file.txt"],
+        volumes={"test_volume": {"bind": "/mnt/test_volume", "mode": "rw"}},
+        remove=True,
+        stdout=True,
+        stderr=False,
+    )
+
+    assert result is False

@@ -273,7 +273,7 @@ class VolumeBrowserScreen(ModalScreen):
     """
 
     BINDINGS = [
-        ("b", "back", "Back"),
+        ("escape", "back", "Back"),
         Binding("enter", "select_cursor", "Select", show=True),
     ]
 
@@ -316,6 +316,14 @@ class VolumeBrowserScreen(ModalScreen):
                 )
                 yield Static(
                     "Open parent directory", classes="shortcut shortcut-desc"
+                )
+                yield Static("[b]Delete:[/b]", classes="shortcut shortcut-key")
+                yield Static(
+                    "Delete selected file", classes="shortcut shortcut-desc"
+                )
+                yield Static("[b]Echap:[/b]", classes="shortcut shortcut-key")
+                yield Static(
+                    "Back the volume list", classes="shortcut shortcut-desc"
                 )
 
     def on_mount(self) -> None:
@@ -377,6 +385,25 @@ class VolumeBrowserScreen(ModalScreen):
             self.current_path = os.path.dirname(self.current_path)
             table = self.query_one(DataTable)
             self.load_data()
+        elif event.key == "delete" or event.key == "d":
+            selected = table.cursor_row
+            row_data = table.get_row_at(selected)
+            selected_name = row_data[1]
+            selected_node = self.volume_tree.index.get(
+                self.current_path, {}
+            ).childrens.get(selected_name)
+
+            if selected_node:
+                try:
+                    self.volume_manager.delete_volume_file(
+                        self.volume_name, selected_node.path
+                    )
+                    self.volume_tree.delete_node(selected_node.path)
+                    self.load_data()
+                except Exception as e:
+                    self.app.push_screen(
+                        ErrorScreen(f"Error deleting file: {e}")
+                    )
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -86,7 +86,7 @@ class DockerClient:
             return output.decode().strip()
         except docker.errors.ContainerError as e:
             print(f"[Docker Error] Command failed: {e}")
-            return None
+            return False
 
     def get_volume_size(self, volume_name: Union[str, List[str]]) -> str:
         """
@@ -197,3 +197,18 @@ class DockerClient:
             cached_results.update(results)
 
         return cached_results
+
+    def delete_volume_file(self, volume_name: str, file_path: str) -> bool:
+        """
+        Deletes a specific file in a Docker volume.
+
+        Args:
+            volume_name (str): Name of the Docker volume.
+            file_path (str): Path to the file inside the volume.
+
+        Returns:
+            bool: True if the file was deleted successfully, False otherwise.
+        """
+        command = ["sh", "-c", f"rm -f /mnt/{volume_name}/{file_path}"]
+        output = self._run_in_container(command, volume_name, mode="rw")
+        return output is not False
